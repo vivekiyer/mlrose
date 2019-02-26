@@ -5,6 +5,7 @@
 
 import numpy as np
 from sklearn.metrics import mean_squared_error, log_loss
+from sklearn.base import BaseEstimator
 from .activation import identity, relu, sigmoid, softmax, tanh
 from .algorithms import random_hill_climb, simulated_annealing, genetic_alg
 from .opt_probs import ContinuousOpt
@@ -173,7 +174,7 @@ class NetworkWeights:
     """
 
     def __init__(self, X, y, node_list, activation, bias=True,
-                 is_classifier=True, learning_rate=0.1):
+                 is_classifier=True, lr=0.1):
 
         # Make sure y is an array and not a list
         y = np.array(y)
@@ -203,8 +204,8 @@ class NetworkWeights:
         if not isinstance(is_classifier, bool):
             raise Exception("""is_classifier must be True or False.""")
 
-        if learning_rate <= 0:
-            raise Exception("""learning_rate must be greater than 0.""")
+        if lr <= 0:
+            raise Exception("""lr must be greater than 0.""")
 
         self.X = X
         self.y_true = y
@@ -212,7 +213,7 @@ class NetworkWeights:
         self.activation = activation
         self.bias = bias
         self.is_classifier = is_classifier
-        self.lr = learning_rate
+        self.lr = lr
 
         # Determine appropriate loss function and output activation function
         if self.is_classifier:
@@ -338,7 +339,7 @@ class NetworkWeights:
         return updates_list
 
 
-class NeuralNetwork:
+class NeuralNetwork(BaseEstimator):
     """Class for defining neural network weights optimization problem.
 
     Parameters
@@ -365,7 +366,7 @@ class NeuralNetwork:
         Whether the network is for classification or regression. Set
         :code:`True` for classification and :code:`False` for regression.
 
-    learning_rate: float, default: 0.1
+    lr: float, default: 0.1
         Learning rate for gradient descent or step size for randomized
         optimization algorithms.
 
@@ -411,7 +412,7 @@ class NeuralNetwork:
 
     def __init__(self, hidden_nodes, activation='relu',
                  algorithm='random_hill_climb', max_iters=100, bias=True,
-                 is_classifier=True, learning_rate=0.1, early_stopping=False,
+                 is_classifier=True, lr=0.1, early_stopping=False,
                  clip_max=1e+10, schedule=GeomDecay(), pop_size=200,
                  mutation_prob=0.1, max_attempts=10):
 
@@ -425,8 +426,8 @@ class NeuralNetwork:
         if not isinstance(is_classifier, bool):
             raise Exception("""is_classifier must be True or False.""")
 
-        if learning_rate <= 0:
-            raise Exception("""learning_rate must be greater than 0.""")
+        if lr <= 0:
+            raise Exception("""lr must be greater than 0.""")
 
         if not isinstance(early_stopping, bool):
             raise Exception("""early_stopping must be True or False.""")
@@ -453,17 +454,18 @@ class NeuralNetwork:
         self.max_iters = max_iters
         self.bias = bias
         self.is_classifier = is_classifier
-        self.lr = learning_rate
+        self.lr = lr
         self.early_stopping = early_stopping
         self.clip_max = clip_max
         self.schedule = schedule
         self.pop_size = pop_size
         self.mutation_prob = mutation_prob
+        self.activation = activation
 
         activation_dict = {'identity': identity, 'relu': relu,
                            'sigmoid': sigmoid, 'tanh': tanh}
-        if activation in activation_dict.keys():
-            self.activation = activation_dict[activation]
+        if self.activation in activation_dict.keys():
+            self.activation_fn = activation_dict[activation]
         else:
             raise Exception("""Activation function must be one of: 'identity',
             'relu', 'sigmoid' or 'tanh'.""")
@@ -529,8 +531,8 @@ class NeuralNetwork:
                             % (num_nodes,))
 
         # Initialize optimization problem
-        fitness = NetworkWeights(X, y, node_list, self.activation, self.bias,
-                                 self.is_classifier, learning_rate=self.lr)
+        fitness = NetworkWeights(X, y, node_list, self.activation_fn, self.bias,
+                                 self.is_classifier, lr=self.lr)
 
         problem = ContinuousOpt(num_nodes, fitness, maximize=False,
                                 min_val=-1*self.clip_max,
@@ -608,7 +610,7 @@ class NeuralNetwork:
 
             # Transform outputs to get inputs for next layer (or final preds)
             if i < len(weights) - 1:
-                inputs = self.activation(outputs)
+                inputs = self.activation_fn(outputs)
             else:
                 y_pred = self.output_activation(outputs)
 
@@ -625,6 +627,35 @@ class NeuralNetwork:
 
         return y_pred
 
+    def get_params(self, deep=True):
+        params = {'hidden_nodes':self.hidden_nodes, 'max_iters':self.max_iters,
+            'bias':self.bias, 'is_classifier':self.is_classifier,
+            'lr':self.lr, 'early_stopping':self.early_stopping,
+            'clip_max':self.clip_max, 'schedule':self.schedule,
+            'pop_size':self.pop_size, 'mutation_prob':self.mutation_prob}
+        return params
+    def set_params(self, **in_params):
+        if 'hidden_nodes' in in_params.keys():
+            self.hidden_nodes = in_params['hidden_nodes']
+        if 'max_iters' in in_params.keys():
+            self.max_iters = in_params['max_iters']
+        if 'bias' in in_params.keys():
+            self.bias = in_params['bias']
+        if 'is_classifier' in in_params.keys():
+            self.is_classifier = in_params['is_classifier']
+        if 'lr' in in_params.keys():
+            self.lr = in_params['lr']
+        if 'early_stopping' in in_params.keys():
+            self.early_stopping = in_params['early_stopping']
+        if 'clip_max' in in_params.keys():
+            self.clip_max = in_params['clip_max']
+        if 'schedule' in in_params.keys():
+            self.schedule = in_params['schedule']
+        if 'pop_size' in in_params.keys():
+            self.pop_size = in_params['pop_size']
+        if 'mutation_prob' in in_params.keys():
+            self.mutation_prob = in_params['mutation_prob']
+        return self
 
 class LinearRegression(NeuralNetwork):
     """Class for defining linear regression weights optimization
@@ -644,7 +675,7 @@ class LinearRegression(NeuralNetwork):
     bias: bool, default: True
         Whether to include a bias term.
 
-    learning_rate: float, default: 0.1
+    lr: float, default: 0.1
         Learning rate for gradient descent or step size for randomized
         optimization algorithms.
 
@@ -683,14 +714,14 @@ class LinearRegression(NeuralNetwork):
     """
 
     def __init__(self, algorithm='random_hill_climb', max_iters=100, bias=True,
-                 learning_rate=0.1, early_stopping=False, clip_max=1e+10,
+                 lr=0.1, early_stopping=False, clip_max=1e+10,
                  schedule=GeomDecay(), pop_size=200, mutation_prob=0.1,
                  max_attempts=10):
 
         NeuralNetwork.__init__(
             self, hidden_nodes=[], activation='identity',
             algorithm=algorithm, max_iters=max_iters, bias=bias,
-            is_classifier=False, learning_rate=learning_rate,
+            is_classifier=False, lr=lr,
             early_stopping=early_stopping, clip_max=clip_max,
             schedule=schedule, pop_size=pop_size, mutation_prob=mutation_prob,
             max_attempts=max_attempts)
@@ -714,7 +745,7 @@ class LogisticRegression(NeuralNetwork):
     bias: bool, default: True
         Whether to include a bias term.
 
-    learning_rate: float, default: 0.1
+    lr: float, default: 0.1
         Learning rate for gradient descent or step size for randomized
         optimization algorithms.
 
@@ -753,14 +784,14 @@ class LogisticRegression(NeuralNetwork):
     """
 
     def __init__(self, algorithm='random_hill_climb', max_iters=100, bias=True,
-                 learning_rate=0.1, early_stopping=False, clip_max=1e+10,
+                 lr=0.1, early_stopping=False, clip_max=1e+10,
                  schedule=GeomDecay(), pop_size=200, mutation_prob=0.1,
                  max_attempts=10):
 
         NeuralNetwork.__init__(
             self, hidden_nodes=[], activation='sigmoid',
             algorithm=algorithm, max_iters=max_iters, bias=bias,
-            is_classifier=True, learning_rate=learning_rate,
+            is_classifier=True, lr=lr,
             early_stopping=early_stopping, clip_max=clip_max,
             schedule=schedule, pop_size=pop_size, mutation_prob=mutation_prob,
             max_attempts=max_attempts)
