@@ -72,7 +72,7 @@ def unflatten_weights(flat_weights, node_list):
 
 
 def gradient_descent(problem, max_attempts=10, max_iters=np.inf,
-                     init_state=None):
+                     init_state=None, curve=False):
     """Use gradient_descent to find the optimal neural network weights.
 
     Parameters
@@ -121,6 +121,8 @@ def gradient_descent(problem, max_attempts=10, max_iters=np.inf,
     best_fitness = problem.get_maximize()*problem.get_fitness()
     best_state = problem.get_state()
 
+    if curve:
+        fitness_curve = np.array([])
     while (attempts < max_attempts) and (iters < max_iters):
         iters += 1
 
@@ -139,9 +141,14 @@ def gradient_descent(problem, max_attempts=10, max_iters=np.inf,
             best_fitness = problem.get_maximize()*next_fitness
             best_state = next_state
 
+        if curve:
+            fitness_curve = np.append(fitness_curve, problem.get_fitness())
         problem.set_state(next_state)
 
-    return best_state, best_fitness
+    if curve:
+        return best_state, best_fitness, fitness_curve
+    else:
+        return best_state, best_fitness
 
 
 class NetworkWeights:
@@ -414,7 +421,7 @@ class NeuralNetwork(BaseEstimator):
                  algorithm='random_hill_climb', max_iters=100, bias=True,
                  is_classifier=True, lr=0.1, early_stopping=False,
                  clip_max=1e+10, schedule=GeomDecay(), pop_size=200,
-                 mutation_prob=0.1, max_attempts=10):
+                 mutation_prob=0.1, max_attempts=10, curve=False):
 
         if (not isinstance(max_iters, int) and max_iters != np.inf
                 and not max_iters.is_integer()) or (max_iters < 0):
@@ -461,6 +468,7 @@ class NeuralNetwork(BaseEstimator):
         self.pop_size = pop_size
         self.mutation_prob = mutation_prob
         self.activation = activation
+        self.curve = curve
 
         activation_dict = {'identity': identity, 'relu': relu,
                            'sigmoid': sigmoid, 'tanh': tanh}
@@ -483,6 +491,7 @@ class NeuralNetwork(BaseEstimator):
             self.max_attempts = self.max_iters
 
         self.node_list = []
+        self.fitness_curve = []
         self.fitted_weights = []
         self.loss = np.inf
         self.output_activation = None
@@ -538,41 +547,68 @@ class NeuralNetwork(BaseEstimator):
                                 min_val=-1*self.clip_max,
                                 max_val=self.clip_max, step=self.lr)
 
+        fitness_curve = []
         if self.algorithm == 'random_hill_climb':
             if init_weights is None:
                 init_weights = np.random.uniform(-1, 1, num_nodes)
 
-            fitted_weights, loss = random_hill_climb(
-                problem,
-                max_attempts=self.max_attempts, max_iters=self.max_iters,
-                restarts=0, init_state=init_weights)
+            if self.curve:
+                fitted_weights, loss, fitness_curve = random_hill_climb(
+                    problem,
+                    max_attempts=self.max_attempts, max_iters=self.max_iters,
+                    restarts=0, init_state=init_weights, curve=self.curve)
+            else:
+                fitted_weights, loss = random_hill_climb(
+                    problem,
+                    max_attempts=self.max_attempts, max_iters=self.max_iters,
+                    restarts=0, init_state=init_weights, curve=self.curve)
 
         elif self.algorithm == 'simulated_annealing':
             if init_weights is None:
                 init_weights = np.random.uniform(-1, 1, num_nodes)
-            fitted_weights, loss = simulated_annealing(
-                problem,
-                schedule=self.schedule, max_attempts=self.max_attempts,
-                max_iters=self.max_iters, init_state=init_weights)
+            if self.curve:
+                fitted_weights, loss, fitness_curve = simulated_annealing(
+                    problem,
+                    schedule=self.schedule, max_attempts=self.max_attempts,
+                    max_iters=self.max_iters, init_state=init_weights, curve=self.curve)
+            else:
+                fitted_weights, loss = simulated_annealing(
+                    problem,
+                    schedule=self.schedule, max_attempts=self.max_attempts,
+                    max_iters=self.max_iters, init_state=init_weights, curve=self.curve)
 
         elif self.algorithm == 'genetic_alg':
-            fitted_weights, loss = genetic_alg(
-                problem,
-                pop_size=self.pop_size, mutation_prob=self.mutation_prob,
-                max_attempts=self.max_attempts, max_iters=self.max_iters)
+            if self.curve:
+                fitted_weights, loss, fitness_curve = genetic_alg(
+                    problem,
+                    pop_size=self.pop_size, mutation_prob=self.mutation_prob,
+                    max_attempts=self.max_attempts, max_iters=self.max_iters, curve=self.curve)
+            else:
+                fitted_weights, loss = genetic_alg(
+                    problem,
+                    pop_size=self.pop_size, mutation_prob=self.mutation_prob,
+                    max_attempts=self.max_attempts, max_iters=self.max_iters, curve=self.curve)
 
         else:  # Gradient descent case
             if init_weights is None:
                 init_weights = np.random.uniform(-1, 1, num_nodes)
-            fitted_weights, loss = gradient_descent(
-                problem,
-                max_attempts=self.max_attempts, max_iters=self.max_iters,
-                init_state=init_weights)
+            if self.curve:
+                fitted_weights, loss, fitness_curve = gradient_descent(
+                    problem,
+                    max_attempts=self.max_attempts, max_iters=self.max_iters,
+                    init_state=init_weights, curve=self.curve)
+            else:
+                fitted_weights, loss = gradient_descent(
+                    problem,
+                    max_attempts=self.max_attempts, max_iters=self.max_iters,
+                    init_state=init_weights, curve=self.curve)
 
         # Save fitted weights and node list
         self.node_list = node_list
         self.fitted_weights = fitted_weights
         self.loss = loss
+        if self.curve:
+            self.fitness_curve = fitness_curve
         self.output_activation = fitness.get_output_activation()
 
     def predict(self, X):
