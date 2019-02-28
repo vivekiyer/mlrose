@@ -60,7 +60,7 @@ def hill_climb(problem, max_iters=np.inf, restarts=0, init_state=None, curve=Fal
     best_state = None
 
     if curve:
-        fitness_curve = np.array([])
+        fitness_curve = []
 
 
     for _ in range(restarts + 1):
@@ -91,8 +91,9 @@ def hill_climb(problem, max_iters=np.inf, restarts=0, init_state=None, curve=Fal
         if problem.get_fitness() > best_fitness:
             best_fitness = problem.get_fitness()
             best_state = problem.get_state()
+
         if curve:
-            fitness_curve = np.append(fitness_curve, problem.get_fitness())
+            fitness_curve.append(problem.get_maximize()*problem.get_fitness())
 
     best_fitness = problem.get_maximize()*best_fitness
     if curve:
@@ -160,7 +161,7 @@ def random_hill_climb(problem, max_attempts=10, max_iters=np.inf, restarts=0,
     best_state = None
 
     if curve:
-        fitness_curve = np.array([])
+        fitness_curve = []
 
     for _ in range(restarts + 1):
         # Initialize optimization problem and attempts counter
@@ -189,7 +190,7 @@ def random_hill_climb(problem, max_attempts=10, max_iters=np.inf, restarts=0,
                 attempts += 1
 
             if curve:
-                fitness_curve = np.append(fitness_curve, problem.get_fitness())
+                fitness_curve.append(problem.get_maximize()*problem.get_fitness())
 
         # Update best state and best fitness
         if problem.get_fitness() > best_fitness:
@@ -263,7 +264,7 @@ def simulated_annealing(problem, schedule=GeomDecay(), max_attempts=10,
         problem.set_state(init_state)
 
     if curve:
-        fitness_curve = np.array([])
+        fitness_curve = []
 
     attempts = 0
     iters = 0
@@ -292,9 +293,9 @@ def simulated_annealing(problem, schedule=GeomDecay(), max_attempts=10,
 
             else:
                 attempts += 1
-            
+
         if curve:
-            fitness_curve = np.append(fitness_curve, problem.get_fitness())
+            fitness_curve.append(problem.get_maximize()*problem.get_fitness())
 
     best_fitness = problem.get_maximize()*problem.get_fitness()
     best_state = problem.get_state()
@@ -411,14 +412,13 @@ def genetic_alg(problem, pop_size=200, mutation_prob=0.1, max_attempts=10,
             attempts += 1
 
         if curve:
-            fitness_curve.append(problem.get_pop_fitness())
-
+            fitness_curve.append(problem.get_maximize()*problem.get_fitness())
 
     best_fitness = problem.get_maximize()*problem.get_fitness()
     best_state = problem.get_state()
 
     if curve:
-        return best_state, best_fitness, np.asarray(fitness_curve)
+        return best_state, best_fitness, fitness_curve
     else:
         return best_state, best_fitness
 
@@ -524,13 +524,13 @@ def mimic(problem, pop_size=200, keep_pct=0.2, max_attempts=10,
             attempts += 1
 
         if curve:
-            fitness_curve.append(problem.get_pop_fitness())
+            fitness_curve.append(problem.get_maximize()*problem.get_fitness())
 
 
     best_fitness = problem.get_maximize()*problem.get_fitness()
     best_state = problem.get_state().astype(int)
 
     if curve:
-        return best_state, best_fitness, np.asarray(fitness_curve)
+        return best_state, best_fitness, fitness_curve
     else:
         return best_state, best_fitness
